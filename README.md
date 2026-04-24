@@ -1,7 +1,7 @@
 # DASC3240_Final_Project
 ## Group member list
-- LIAO, Win (Leader)
-- CHAN, Yin Hang Nick (Owner)
+- LIAO, Win (Leader & Owner)
+- CHAN, Yin Hang Nick
 - LAU, Shing Chung
 - MOELLENHUS, Martin
 - YIP, Chi Ho
