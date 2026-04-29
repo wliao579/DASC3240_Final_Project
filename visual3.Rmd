@@ -1,0 +1,170 @@
+---
+title: "visual3"
+author: "YIP Chi Ho"
+date: "2026-04-28"
+output: html_document
+---
+
+## Including Plots
+
+You can also embed plots, for example:
+
+## Hollinger Game Score
+
+The Hollinger Game Score is a single-game impact metric. The standard formula is:
+
+$$
+	ext{Game Score} = \text{PTS} + 0.4\cdot\text{FG} - 0.7\cdot\text{FGA} - 0.4\cdot(\text{FTA}-\text{FT}) + 0.7\cdot\text{ORB} + 0.3\cdot\text{DRB} + \text{STL} + 0.7\cdot\text{AST} + 0.7\cdot\text{BLK} - 0.4\cdot\text{PF} - \text{TOV}
+$$
+
+```{r visual3, echo=FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(gganimate)
+library(ggimage)
+
+# 1. Load data
+df <- read.csv('basketball.csv')
+labels_df <- read.csv('player_photos/labels.csv', stringsAsFactors = FALSE) %>%
+  select(player_name, image_path)
+
+# 1b. Hollinger Game Score (using per-game averages)
+df <- df %>%
+  mutate(
+    game_score = avg_points +
+      (0.4 * avg_field_goals) -
+      (0.7 * avg_field_goal_attempts) -
+      (0.4 * (avg_free_throw_attempts - avg_free_throws)) +
+      (0.7 * avg_offensive_rb) +
+      (0.3 * avg_defensive_rb) +
+      avg_steals +
+      (0.7 * avg_assists) +
+      (0.7 * avg_blocks) -
+      (0.4 * avg_personal_fouls) -
+      avg_turnovers
+  )
+
+# 2. Filter & Prepare Hollinger Game Score Steps
+bench_data <- df %>%
+  filter(!starter, games_played > 5) %>%
+  drop_na(
+    avg_points,
+    avg_field_goals,
+    avg_field_goal_attempts,
+    avg_free_throw_attempts,
+    avg_free_throws,
+    avg_offensive_rb,
+    avg_defensive_rb,
+    avg_steals,
+    avg_assists,
+    avg_blocks,
+    avg_personal_fouls,
+    avg_turnovers
+  )
+
+# 3. Scaling Function
+normalize <- function(x) {
+  if(max(x) == min(x)) return(rep(0, length(x)))
+  (x - min(x)) / (max(x) - min(x))
+}
+
+# 4. Build Hollinger Cumulative Stages (reuse previous stage)
+bench_scored <- bench_data %>%
+  mutate(
+    score_s1 = avg_points,
+    score_s2 = score_s1 + (0.4 * avg_field_goals),
+    score_s3 = score_s2 - (0.7 * avg_field_goal_attempts),
+    score_s4 = score_s3 - (0.4 * (avg_free_throw_attempts - avg_free_throws)),
+    score_s5 = score_s4 + (0.7 * avg_offensive_rb),
+    score_s6 = score_s5 + (0.3 * avg_defensive_rb),
+    score_s7 = score_s6 + avg_steals,
+    score_s8 = score_s7 + (0.7 * avg_assists),
+    score_s9 = score_s8 + (0.7 * avg_blocks),
+    score_s10 = score_s9 - (0.4 * avg_personal_fouls),
+    score_s11 = score_s10 - avg_turnovers
+  )
+
+s1 <- bench_scored %>% mutate(score_raw = score_s1, stage = "1. Points (PTS)")
+s2 <- bench_scored %>% mutate(score_raw = score_s2, stage = "2. + Field Goals (FG)")
+s3 <- bench_scored %>% mutate(score_raw = score_s3, stage = "3. - FG Attempts (FGA)")
+s4 <- bench_scored %>% mutate(score_raw = score_s4, stage = "4. - FT Misses (FTA-FT)")
+s5 <- bench_scored %>% mutate(score_raw = score_s5, stage = "5. + Offensive Rebounds (ORB)")
+s6 <- bench_scored %>% mutate(score_raw = score_s6, stage = "6. + Defensive Rebounds (DRB)")
+s7 <- bench_scored %>% mutate(score_raw = score_s7, stage = "7. + Steals (STL)")
+s8 <- bench_scored %>% mutate(score_raw = score_s8, stage = "8. + Assists (AST)")
+s9 <- bench_scored %>% mutate(score_raw = score_s9, stage = "9. + Blocks (BLK)")
+s10 <- bench_scored %>% mutate(score_raw = score_s10, stage = "10. - Personal Fouls (PF)")
+s11 <- bench_scored %>% mutate(score_raw = score_s11, stage = "11. - Turnovers (TOV)")
+
+animation_data <- bind_rows(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11) %>%
+  mutate(
+    stage = factor(
+      stage,
+      levels = c(
+        "1. Points (PTS)",
+        "2. + Field Goals (FG)",
+        "3. - FG Attempts (FGA)",
+        "4. - FT Misses (FTA-FT)",
+        "5. + Offensive Rebounds (ORB)",
+        "6. + Defensive Rebounds (DRB)",
+        "7. + Steals (STL)",
+        "8. + Assists (AST)",
+        "9. + Blocks (BLK)",
+        "10. - Personal Fouls (PF)",
+        "11. - Turnovers (TOV)"
+      )
+    )
+  ) %>%
+  mutate(score = score_raw) %>%
+  # IMPORTANT: player_name is the tie-breaker. This prevents the order(ind) error.
+  group_by(stage) %>%
+  arrange(desc(score_raw), player_name) %>%
+  mutate(rank = row_number() * 1.0) %>%
+  filter(rank <= 10) %>%
+  ungroup() %>%
+  left_join(labels_df, by = "player_name") %>%
+  mutate(
+    image_path_resized = file.path("player_photos", basename(image_path)),
+    image_path_final = if_else(file.exists(image_path_resized), image_path_resized, image_path)
+  )
+
+# 6. Plotting with Object Permanence
+# We use geom_tile because it is more stable than geom_col for "races"
+NAME_Y <- -0.05
+IMAGE_Y <- 0
+IMAGE_SIZE <- 0.06
+IMAGE_TIP_OFFSET <- 0.2
+p <- ggplot(animation_data, aes(group = player_name)) +
+  geom_tile(aes(x = rank, y = score/2, height = score, width = 0.9, fill = score), alpha = 0.9) +
+  geom_image(
+    aes(x = rank, y = pmax(score - IMAGE_TIP_OFFSET, IMAGE_TIP_OFFSET), image = image_path_final),
+    size = IMAGE_SIZE,
+    angle = 0
+  ) +
+  geom_text(aes(x = rank, y = NAME_Y, label = player_name), hjust = -0.1, size = 5, color = "white", fontface = "bold", angle = 0) +
+  # Add the numeric score as a label at the tip of the bar
+  geom_text(aes(x = rank, y = score, label = round(score, 2)), hjust = -0.2, size = 4) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_x_reverse() +
+  scale_fill_viridis_c(option = "viridis", direction = 1) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    plot.title = element_text(size = 22, face = "bold"),
+    plot.margin = margin(1, 6, 1, 1, "cm")
+  ) +
+  labs(
+    title = "WNBA Hidden Gems: {closest_state}",
+    subtitle = "Cumulative Impact Score (Raw)",
+    x = "",
+    y = "Score"
+  ) +
+  transition_states(stage, transition_length = 4, state_length = 2, wrap = FALSE) +
+  ease_aes("cubic-in-out")
+
+# 7. Render
+animate(p, nframes = 11, fps = 1, width = 850, height = 550, renderer = gifski_renderer())
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
