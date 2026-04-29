@@ -9,6 +9,14 @@ output: html_document
 
 You can also embed plots, for example:
 
+## Repeated players and their final teams they stayed in 2019
+Alaina Coates: ATL
+Asia Taylor: PHO
+Bridget Carleton: MIN
+Karlie Samuelson: DAL
+Kristine Anigwe: DAL
+Theresa Plaisance: CON
+
 ## Hollinger Game Score
 
 The Hollinger Game Score is a single-game impact metric. The standard formula is:
@@ -23,8 +31,8 @@ library(gganimate)
 library(ggimage)
 
 # 1. Load data
-df <- read.csv('basketball.csv')
-labels_df <- read.csv('player_photos/labels.csv', stringsAsFactors = FALSE) %>%
+df <- read.csv('basketball_processed.csv')
+labels_df <- read.csv('player_photos_resized/labels.csv', stringsAsFactors = FALSE) %>%
   select(player_name, image_path)
 
 # 1b. Hollinger Game Score (using per-game averages)
