@@ -123,7 +123,7 @@ animation_data <- bind_rows(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11) %>%
   ungroup() %>%
   left_join(labels_df, by = "player_name") %>%
   mutate(
-    image_path_resized = file.path("player_photos", basename(image_path)),
+    image_path_resized = file.path("player_photos_resized", basename(image_path)),
     image_path_final = if_else(file.exists(image_path_resized), image_path_resized, image_path)
   )
 
