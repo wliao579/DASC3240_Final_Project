@@ -2,21 +2,14 @@ library(shiny)
 library(ggplot2)
 library(tidyverse)
 
+basket <- read.csv("../basketball_processed.csv")
+
 method_dict = list(
   "Two pointers" = "avg_two_pointers", 
   "Three pointers" = "avg_three_pointers",
   "Free throws" = "avg_free_throws",
   "Field Goal" = "avg_field_goals"
   )
-
-basket <- read.csv("basketball_processed.csv")
-
-method_dict = list(
-  "Two pointers" = "avg_two_pointers", 
-  "Three pointers" = "avg_three_pointers",
-  "Free throws" = "avg_free_throws",
-  "Field Goal" = "avg_field_goals"
-)
 
 ui <- fluidPage(
   # Application title
