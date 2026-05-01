@@ -1,0 +1,134 @@
+---
+title: "DASC3240_Final_Project_Scatterplot"
+format: html
+editor: visual
+server: shiny
+---
+
+## Running Code
+
+```{r}
+library(shiny)
+library(tidyverse)
+library(plotly)
+
+# Load data
+basketball <- read.csv("/Users/winliao/Desktop/DASC3240_Assignment/basketball.csv", stringsAsFactors = FALSE)
+
+# Clean data
+basketball_clean <- basketball %>%
+  filter(!is.na(height), !is.na(avg_minutes_played), 
+         !is.na(avg_points), !is.na(avg_assists), 
+         !is.na(avg_rb), !is.na(field_goal_pct),
+         avg_minutes_played > 0) %>%
+  mutate(
+    points_per_minute = avg_points / avg_minutes_played,
+    assists_per_minute = avg_assists / avg_minutes_played,
+    rebounds_per_minute = avg_rb / avg_minutes_played,
+    player_label = paste0(
+      player_name, "<br>",
+      "Team: ", team, "<br>",
+      "PPG: ", round(avg_points, 2), "<br>",
+      "APG: ", round(avg_assists, 2), "<br>",
+      "RPG: ", round(avg_rb, 2), "<br>",
+      "FG%: ", round(field_goal_pct, 3)
+    )
+  )
+
+# UI
+ui <- fluidPage(
+  titlePanel("Basketball Player Performance Explorer"),
+
+  sidebarLayout(
+    sidebarPanel(
+      selectInput(
+        "metric",
+        "Choose Metric:",
+        choices = c(
+          "Points per Minute" = "points",
+          "Assists per Minute" = "assists",
+          "Rebounds per Minute" = "rebounds",
+          "Field Goal %" = "fg"
+        )
+      ),
+
+      radioButtons(
+        "player_type",
+        "Player Type:",
+        choices = c("Bench" = "bench", "Starter" = "starter"),
+        selected = "bench"
+      )
+    ),
+
+    mainPanel(
+      plotlyOutput("mainPlot")
+    )
+  )
+)
+
+# Server
+server <- function(input, output) {
+
+  filtered_data <- reactive({
+    if (input$player_type == "bench") {
+      basketball_clean %>% filter(starter == FALSE)
+    } else {
+      basketball_clean %>% filter(starter == TRUE)
+    }
+  })
+
+  output$mainPlot <- renderPlotly({
+
+    data <- filtered_data()
+
+    y_var <- switch(input$metric,
+                    "points" = data$points_per_minute,
+                    "assists" = data$assists_per_minute,
+                    "rebounds" = data$rebounds_per_minute,
+                    "fg" = data$field_goal_pct)
+
+    y_label <- switch(input$metric,
+                      "points" = "Points Per Minute",
+                      "assists" = "Assists Per Minute",
+                      "rebounds" = "Rebounds Per Minute",
+                      "fg" = "Field Goal %")
+
+    title_text <- paste(
+      ifelse(input$player_type == "bench", "Bench Players:", "Starters:"),
+      y_label, "vs Playing Time"
+    )
+
+    p <- ggplot(data,
+                aes(x = avg_minutes_played,
+                    y = y_var,
+                    color = team,
+                    text = player_label)) +
+      geom_point(alpha = 0.65, size = 1.8) +  # fixed small dots
+      labs(
+        title = title_text,
+        x = "Minutes Per Game",
+        y = y_label,
+        color = "Team"
+      ) +
+      theme_minimal() +
+      theme(
+        plot.title = element_text(size = 13, face = "bold"),
+        legend.position = "bottom",
+
+        # spacing fixes
+        axis.title.x = element_text(margin = margin(t = 15)),
+        legend.margin = margin(t = 20)
+      ) +
+      scale_y_continuous(labels = scales::number_format(accuracy = 0.01))
+
+    ggplotly(p, tooltip = "text") %>%
+      layout(
+        legend = list(orientation = "h", y = -0.3),
+        margin = list(b = 110)
+      )
+  })
+}
+
+# Run app
+shinyApp(ui = ui, server = server)
+```
